@@ -1,0 +1,22 @@
+{
+  "name": "spike-browser",
+  "module": "src/cli/main.ts",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "spike-browser": "src/cli/main.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli/main.ts",
+    "daemon": "bun run src/cli/main.ts daemon",
+    "test": "bun test",
+    "build:ext": "bun run build.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "esbuild": "^0.27.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

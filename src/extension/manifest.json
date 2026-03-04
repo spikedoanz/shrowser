@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "spike-browser",
+  "version": "0.1.0",
+  "description": "Composable browser scripting from your terminal",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
