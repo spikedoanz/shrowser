@@ -13,16 +13,17 @@ register("echo", "echo arguments or pipe input", async (args, pipe) => {
 register("grep", "filter lines matching a pattern", async (args, pipe) => {
   const pattern = args[0];
   if (!pattern) return pipe;
-  const lines = valueToLines(pipe);
+  const lower = pattern.toLowerCase();
 
   if (pipe.kind === "table") {
     const matching = pipe.rows.filter((row) =>
-      pipe.columns.some((col) => (row[col] ?? "").includes(pattern)),
+      pipe.columns.some((col) => (row[col] ?? "").toLowerCase().includes(lower)),
     );
     return { kind: "table", columns: pipe.columns, rows: matching };
   }
 
-  const matching = lines.filter((line) => line.includes(pattern));
+  const lines = valueToLines(pipe);
+  const matching = lines.filter((line) => line.toLowerCase().includes(lower));
   return text(matching.join("\n"));
 });
 

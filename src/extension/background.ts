@@ -164,17 +164,18 @@ register("echo", "echo [args...]", "echo arguments or pipe input", async (args, 
   return text("");
 });
 
-register("grep", "grep <pattern>", "filter lines or rows matching a pattern", async (args, pipe) => {
+register("grep", "grep <pattern>", "filter lines or rows matching a pattern (case-insensitive)", async (args, pipe) => {
   const pattern = args[0];
   if (!pattern) return pipe;
+  const lower = pattern.toLowerCase();
   if (pipe.kind === "table") {
     const matching = pipe.rows.filter((row) =>
-      pipe.columns.some((col) => (row[col] ?? "").includes(pattern)),
+      pipe.columns.some((col) => (row[col] ?? "").toLowerCase().includes(lower)),
     );
     return { kind: "table", columns: pipe.columns, rows: matching };
   }
   const lines = valueToLines(pipe);
-  return text(lines.filter((l) => l.includes(pattern)).join("\n"));
+  return text(lines.filter((l) => l.toLowerCase().includes(lower)).join("\n"));
 });
 
 register("head", "head [n=10]", "take first N lines or rows", async (args, pipe) => {
