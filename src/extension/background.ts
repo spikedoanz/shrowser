@@ -172,26 +172,6 @@ register("tail", async (args, pipe) => {
   return text(valueToLines(pipe).slice(-n).join("\n"));
 });
 
-register("first", async (_args, pipe) => {
-  if (pipe.kind === "table") {
-    return pipe.rows.length > 0
-      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[0]!] }
-      : pipe;
-  }
-  const lines = valueToLines(pipe);
-  return text(lines[0] ?? "");
-});
-
-register("last", async (_args, pipe) => {
-  if (pipe.kind === "table") {
-    return pipe.rows.length > 0
-      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[pipe.rows.length - 1]!] }
-      : pipe;
-  }
-  const lines = valueToLines(pipe);
-  return text(lines[lines.length - 1] ?? "");
-});
-
 register("count", async (_args, pipe) => {
   if (pipe.kind === "table") return text(String(pipe.rows.length));
   const lines = valueToLines(pipe);

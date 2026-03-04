@@ -59,28 +59,6 @@ register("count", "count lines or rows", async (_args, pipe) => {
   return text(String(count));
 });
 
-// first — take the first line/row
-register("first", "take the first line or row", async (_args, pipe) => {
-  if (pipe.kind === "table") {
-    return pipe.rows.length > 0
-      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[0]!] }
-      : pipe;
-  }
-  const lines = valueToLines(pipe);
-  return text(lines[0] ?? "");
-});
-
-// last — take the last line/row
-register("last", "take the last line or row", async (_args, pipe) => {
-  if (pipe.kind === "table") {
-    return pipe.rows.length > 0
-      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[pipe.rows.length - 1]!] }
-      : pipe;
-  }
-  const lines = valueToLines(pipe);
-  return text(lines[lines.length - 1] ?? "");
-});
-
 // select — pick columns from a table
 register("select", "pick columns from a table", async (args, pipe) => {
   if (pipe.kind !== "table") return pipe;
