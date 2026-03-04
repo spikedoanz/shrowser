@@ -65,11 +65,25 @@ register("new", async (args, _pipe) => {
   return VOID;
 });
 
-register("jump", async (args, _pipe) => {
-  const idx = parseInt(args[0] ?? "0", 10);
+register("jump", async (args, pipe) => {
+  const arg = args[0] ?? (pipe.kind === "table" && pipe.rows[0]?.["idx"]) ?? "0";
   const tabs = await browser.tabs.query({});
-  const tab = tabs[idx];
-  if (tab?.id) await browser.tabs.update(tab.id, { active: true });
+
+  // Try as number first
+  const idx = parseInt(arg, 10);
+  if (!isNaN(idx) && tabs[idx]?.id) {
+    await browser.tabs.update(tabs[idx]!.id!, { active: true });
+    return VOID;
+  }
+
+  // String: search titles/urls for match
+  const query = args.join(" ").toLowerCase();
+  const match = tabs.find(
+    (t) =>
+      (t.title ?? "").toLowerCase().includes(query) ||
+      (t.url ?? "").toLowerCase().includes(query),
+  );
+  if (match?.id) await browser.tabs.update(match.id, { active: true });
   return VOID;
 });
 
@@ -156,6 +170,26 @@ register("tail", async (args, pipe) => {
   const n = parseInt(args[0] ?? "10", 10);
   if (pipe.kind === "table") return { kind: "table", columns: pipe.columns, rows: pipe.rows.slice(-n) };
   return text(valueToLines(pipe).slice(-n).join("\n"));
+});
+
+register("first", async (_args, pipe) => {
+  if (pipe.kind === "table") {
+    return pipe.rows.length > 0
+      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[0]!] }
+      : pipe;
+  }
+  const lines = valueToLines(pipe);
+  return text(lines[0] ?? "");
+});
+
+register("last", async (_args, pipe) => {
+  if (pipe.kind === "table") {
+    return pipe.rows.length > 0
+      ? { kind: "table", columns: pipe.columns, rows: [pipe.rows[pipe.rows.length - 1]!] }
+      : pipe;
+  }
+  const lines = valueToLines(pipe);
+  return text(lines[lines.length - 1] ?? "");
 });
 
 register("count", async (_args, pipe) => {
