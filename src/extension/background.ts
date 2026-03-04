@@ -71,7 +71,7 @@ register("jump", async (args, pipe) => {
 
   // Try as number first
   const idx = parseInt(arg, 10);
-  if (!isNaN(idx) && tabs[idx]?.id) {
+  if (!isNaN(idx) && String(idx) === arg.trim() && tabs[idx]?.id) {
     await browser.tabs.update(tabs[idx]!.id!, { active: true });
     return VOID;
   }
@@ -83,8 +83,12 @@ register("jump", async (args, pipe) => {
       (t.title ?? "").toLowerCase().includes(query) ||
       (t.url ?? "").toLowerCase().includes(query),
   );
-  if (match?.id) await browser.tabs.update(match.id, { active: true });
-  return VOID;
+  if (match?.id) {
+    await browser.tabs.update(match.id, { active: true });
+    return VOID;
+  }
+
+  return text(`no tab matching "${query}" (searched ${tabs.length} tabs)`);
 });
 
 register("search", async (args, _pipe) => {
