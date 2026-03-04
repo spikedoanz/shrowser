@@ -10,11 +10,26 @@ import type { Script, Pipeline, Command, Arg } from "../lang/types.ts";
 // ── Command registry (browser-side) ─────────────────────────────
 
 type CommandFn = (args: readonly string[], pipe: Value) => Promise<Value>;
-type CommandEntry = { fn: CommandFn; usage: string; desc: string };
+type CommandEntry = { fn: CommandFn; usage: string; desc: string; pure: boolean };
 const commands = new Map<string, CommandEntry>();
 
+const impure = new Set(["close", "new", "jump", "search", "reload", "back", "forward", "pin", "mute"]);
+
 const register = (name: string, usage: string, desc: string, fn: CommandFn) =>
-  commands.set(name, { fn, usage, desc });
+  commands.set(name, { fn, usage, desc, pure: !impure.has(name) });
+
+// Check if a script is pure (all commands are side-effect-free)
+const isScriptPure = (script: Script): boolean =>
+  script.pipelines.every((p) =>
+    p.commands.every((c) => {
+      const entry = commands.get(c.name);
+      if (!entry) return false;
+      // Check subshell args too
+      return entry.pure && c.args.every((a) =>
+        a.kind === "literal" || (a.kind === "subshell" && isScriptPure(a.expr)),
+      );
+    }),
+  );
 
 // ── Built-in browser commands ────────────────────────────────────
 
@@ -236,10 +251,22 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       const tokens = tokenize(msg.command);
       const ast = parse(tokens);
+
+      // In live mode, refuse to execute impure commands
+      if (msg.live && !isScriptPure(ast)) {
+        sendResponse({ value: "", impure: true });
+        return;
+      }
+
       const result = await executeScript(ast);
       sendResponse({ value: renderValue(result) });
     } catch (e: any) {
-      sendResponse({ value: `error: ${e.message}` });
+      // In live mode, swallow parse/unknown-command errors silently
+      if (msg.live) {
+        sendResponse({ value: "" });
+      } else {
+        sendResponse({ value: `error: ${e.message}` });
+      }
     }
   })();
 
