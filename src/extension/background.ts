@@ -256,7 +256,7 @@ const connect = () => {
   ws = new WebSocket(DAEMON_URL);
 
   ws.onopen = () => {
-    console.log("[spike] connected to daemon");
+    console.log("[shrowser] connected to daemon");
     ws!.send(JSON.stringify({ type: "hello", role: "extension" }));
   };
 
@@ -281,7 +281,7 @@ const connect = () => {
   };
 
   ws.onclose = () => {
-    console.log("[spike] disconnected from daemon, reconnecting in 3s...");
+    console.log("[shrowser] disconnected from daemon, reconnecting in 3s...");
     reconnectTimer = setTimeout(connect, 3000);
   };
 

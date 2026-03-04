@@ -84,6 +84,6 @@ export const startDaemon = (port = 9231) => {
     },
   });
 
-  console.log(`spike-browser daemon listening on ws://localhost:${server.port}`);
+  console.log(`shrowser daemon listening on ws://localhost:${server.port}`);
   return server;
 };

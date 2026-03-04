@@ -35,7 +35,7 @@ const STYLES = {
 const createBar = () => {
   bar = document.createElement("div");
   bar.setAttribute("style", STYLES.bar);
-  bar.id = "spike-cmdbar";
+  bar.id = "shrowser-cmdbar";
 
   input = document.createElement("input");
   input.setAttribute("style", STYLES.input);

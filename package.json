@@ -1,10 +1,10 @@
 {
-  "name": "spike-browser",
+  "name": "shrowser",
   "module": "src/cli/main.ts",
   "type": "module",
   "private": true,
   "bin": {
-    "spike-browser": "src/cli/main.ts"
+    "shrowser": "src/cli/main.ts"
   },
   "scripts": {
     "start": "bun run src/cli/main.ts",

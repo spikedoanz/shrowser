@@ -35,9 +35,9 @@ if (args[0] === "daemon") {
 
   const command = chunks.join("").trim();
   if (!command) {
-    console.log("usage: spike-browser <command...>");
-    console.log("       spike-browser daemon [port]");
-    console.log("       echo 'list' | spike-browser");
+    console.log("usage: shrowser <command...>");
+    console.log("       shrowser daemon [port]");
+    console.log("       echo 'list' | shrowser");
     process.exit(0);
   }
 

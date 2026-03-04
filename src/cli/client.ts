@@ -36,6 +36,6 @@ export const sendCommand = (command: string, port = 9231): Promise<string> =>
 
     ws.onerror = (event) => {
       clearTimeout(timeout);
-      reject(new Error("could not connect to daemon — is `spike-browser daemon` running?"));
+      reject(new Error("could not connect to daemon — is `shrowser daemon` running?"));
     };
   });
