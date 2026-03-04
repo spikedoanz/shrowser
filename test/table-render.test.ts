@@ -8,7 +8,10 @@ describe("table rendering", () => {
     ]);
     const out = renderValue(v);
     expect(out).toContain("\t0 GitHub");
-    expect(out).toContain("\thttps://github.com");
+    expect(out).toContain("https://github.com");
+    // url should NOT be tab-indented
+    const urlLine = out.split("\n").find((l) => l.includes("https://github.com"))!;
+    expect(urlLine).not.toMatch(/^\t/);
   });
 
   it("wraps active tab index in parens", () => {
@@ -50,7 +53,7 @@ describe("table rendering", () => {
       { idx: "0", title: "Test", url: "https://example.com" },
     ]);
     const lines = renderValue(v).split("\n");
-    expect(lines[1]).toBe("\thttps://example.com");
+    expect(lines[1]).toBe("https://example.com");
   });
 
   it("shows extra fields below url", () => {
@@ -58,7 +61,9 @@ describe("table rendering", () => {
       { idx: "0", title: "Tab", url: "https://a.com", muted: "yes" },
     ]);
     const out = renderValue(v);
-    expect(out).toContain("\tmuted: yes");
+    expect(out).toContain("muted: yes");
+    const mutedLine = out.split("\n").find((l) => l.includes("muted"))!;
+    expect(mutedLine).not.toMatch(/^\t/);
   });
 
   it("omits empty fields", () => {

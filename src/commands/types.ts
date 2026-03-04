@@ -63,11 +63,11 @@ const renderTable = (
 
     const marker = formatIdx(idx, active, pinned);
     const mainLine = `\t${marker} ${title}`;
-    const urlLine = url ? `\t${url}` : "";
+    const urlLine = url ? url : "";
 
     const extras = columns
       .filter((col) => !inlineKeys.has(col) && (row[col] ?? "").length > 0)
-      .map((col) => `\t${col}: ${row[col]}`)
+      .map((col) => `${col}: ${row[col]}`)
       .join("\n");
 
     return [mainLine, urlLine, extras].filter(Boolean).join("\n");
