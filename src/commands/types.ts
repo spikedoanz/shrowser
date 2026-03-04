@@ -38,14 +38,14 @@ const renderTable = (
   if (rows.length === 0) return "(empty table)";
 
   const gap = 2; // spaces between columns
-  const numCols = columns.length;
+  const gapStr = " ".repeat(gap);
 
   // Natural width each column wants (max of header + all cell values)
   const natural = columns.map((col) =>
     Math.max(col.length, ...rows.map((r) => (r[col] ?? "").length)),
   );
 
-  const totalGap = gap * (numCols - 1);
+  const totalGap = gap * (columns.length - 1);
   const totalNatural = natural.reduce((a, b) => a + b, 0) + totalGap;
 
   // If it fits, use natural widths
@@ -54,17 +54,45 @@ const renderTable = (
       ? natural
       : fitColumns(columns, natural, termWidth, totalGap);
 
-  const truncate = (s: string, w: number): string =>
-    s.length <= w ? s.padEnd(w) : s.slice(0, w - 1) + "…";
+  const pad = (s: string, w: number): string => s.padEnd(w);
 
-  const header = columns.map((col, i) => truncate(col, widths[i]!)).join(" ".repeat(gap));
+  const header = columns.map((col, i) => pad(col, widths[i]!)).join(gapStr);
   const sep = widths.map((w) => "─".repeat(w)).join("─".repeat(gap));
-  const body = rows
-    .map((row) =>
-      columns.map((col, i) => truncate(row[col] ?? "", widths[i]!)).join(" ".repeat(gap)),
-    )
-    .join("\n");
+
+  const body = rows.map((row) => {
+    // Wrap each cell's value into lines that fit the column width
+    const wrapped: string[][] = columns.map((col, i) => {
+      const val = row[col] ?? "";
+      return wrapText(val, widths[i]!);
+    });
+
+    // Number of visual lines this row needs
+    const lineCount = Math.max(...wrapped.map((w) => w.length));
+
+    // Build each visual line
+    const lines: string[] = [];
+    for (let l = 0; l < lineCount; l++) {
+      lines.push(
+        columns.map((_, i) => pad(wrapped[i]![l] ?? "", widths[i]!)).join(gapStr),
+      );
+    }
+    return lines.join("\n");
+  }).join("\n");
+
   return `${header}\n${sep}\n${body}`;
+};
+
+// Wrap text into lines of at most `width` characters.
+const wrapText = (text: string, width: number): string[] => {
+  if (width <= 0) return [text];
+  if (text.length <= width) return [text];
+  const lines: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    lines.push(remaining.slice(0, width));
+    remaining = remaining.slice(width);
+  }
+  return lines;
 };
 
 // Shrink columns to fit within termWidth.
