@@ -1,51 +1,38 @@
 // Content script — command bar overlay (Ctrl+`) and DOM command handler.
 
+import { config } from "../config.gen.ts";
+
 // ── Command bar state ────────────────────────────────────────────
 
 let bar: HTMLDivElement | null = null;
 let input: HTMLInputElement | null = null;
-let output: HTMLPreElement | null = null;
+let output: HTMLDivElement | null = null;
 let statusHint: HTMLSpanElement | null = null;
+let colonEl: HTMLSpanElement | null = null;
 const history: string[] = [];
 let historyIdx = -1;
-let liveSeq = 0; // monotonic counter to discard stale live results
+let liveSeq = 0;
 
-const STYLES = {
-  bar: `
-    position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
-    background: #1e1e1e; border-bottom: 1px solid #444;
-    font-family: monospace; font-size: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  `,
-  input: `
-    width: 100%; box-sizing: border-box;
-    background: #1e1e1e; color: #e0e0e0; border: none; outline: none;
-    font-family: monospace; font-size: 14px;
-    padding: 8px 12px;
-  `,
-  output: `
-    margin: 0; padding: 8px 12px;
-    background: #252525; color: #ccc;
-    font-family: monospace; font-size: 13px;
-    max-height: 60vh; overflow-y: auto;
-    white-space: pre-wrap; word-break: break-all;
-    border-top: 1px solid #333;
-    display: none;
-  `,
-  hint: `
-    position: absolute; right: 12px; top: 8px;
-    color: #666; font-size: 12px;
-    pointer-events: none;
-  `,
-};
+const STYLES = config.repl.styles;
+
+const TABLE_CSS = STYLES.tableCss;
 
 const createBar = () => {
   bar = document.createElement("div");
-  bar.setAttribute("style", STYLES.bar + "position: fixed;");
+  bar.setAttribute("style", STYLES.bar);
   bar.id = "shrowser-cmdbar";
 
+  // Inject scoped styles
+  const style = document.createElement("style");
+  style.textContent = TABLE_CSS;
+  bar.appendChild(style);
+
+  output = document.createElement("div");
+  output.className = "shrowser-output";
+  output.setAttribute("style", STYLES.output);
+
   const inputWrap = document.createElement("div");
-  inputWrap.setAttribute("style", "position: relative;");
+  inputWrap.setAttribute("style", "position: relative; display: flex; align-items: center;");
 
   input = document.createElement("input");
   input.setAttribute("style", STYLES.input);
@@ -55,18 +42,22 @@ const createBar = () => {
   statusHint = document.createElement("span");
   statusHint.setAttribute("style", STYLES.hint);
 
-  output = document.createElement("pre");
-  output.setAttribute("style", STYLES.output);
-
   inputWrap.appendChild(input);
   inputWrap.appendChild(statusHint);
-  bar.appendChild(inputWrap);
   bar.appendChild(output);
+  bar.appendChild(inputWrap);
   document.documentElement.appendChild(bar);
 
   input.addEventListener("keydown", onInputKey);
   input.addEventListener("input", onInputChange);
-  input.addEventListener("blur", () => hideBar());
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (!bar?.contains(document.activeElement) && document.activeElement !== input) {
+        hideBar();
+      }
+    }, 0);
+  });
+  output.setAttribute("tabindex", "-1");
   input.focus();
 };
 
@@ -75,7 +66,7 @@ const showBar = () => {
   bar!.style.display = "";
   input!.value = "";
   output!.style.display = "none";
-  output!.textContent = "";
+  output!.innerHTML = "";
   if (statusHint) statusHint.textContent = "";
   historyIdx = -1;
   input!.focus();
@@ -85,10 +76,61 @@ const hideBar = () => {
   if (bar) bar.style.display = "none";
 };
 
-const showOutput = (text: string) => {
+// ── Render results ──────────────────────────────────────────────
+
+type Value =
+  | { kind: "void" }
+  | { kind: "text"; data: string }
+  | { kind: "table"; columns: string[]; rows: Record<string, string>[] };
+
+const renderResult = (result: Value) => {
   if (!output) return;
-  output.textContent = text;
-  output.style.display = text ? "" : "none";
+
+  if (result.kind === "void" || (result.kind === "text" && !result.data)) {
+    output.innerHTML = "";
+    output.style.display = "none";
+    return;
+  }
+
+  if (result.kind === "text") {
+    const pre = document.createElement("div");
+    pre.className = "shrowser-text";
+    pre.textContent = result.data;
+    output.innerHTML = "";
+    output.appendChild(pre);
+    output.style.display = "";
+    return;
+  }
+
+  if (result.kind === "table") {
+    if (result.rows.length === 0) {
+      output.innerHTML = "";
+      output.style.display = "none";
+      return;
+    }
+
+    const tbl = document.createElement("table");
+    tbl.className = "shrowser-table";
+
+    for (const row of result.rows) {
+      const tr = document.createElement("tr");
+      for (const col of result.columns) {
+        const td = document.createElement("td");
+        td.className = `col-${col}`;
+        td.textContent = row[col] ?? "";
+        tr.appendChild(td);
+      }
+      tbl.appendChild(tr);
+    }
+
+    output.innerHTML = "";
+    output.appendChild(tbl);
+    output.style.display = "";
+  }
+};
+
+const showText = (text: string) => {
+  renderResult({ kind: "text", data: text });
 };
 
 // ── Live execution on input change ───────────────────────────────
@@ -96,7 +138,7 @@ const showOutput = (text: string) => {
 const onInputChange = async () => {
   const cmd = input!.value.trim();
   if (!cmd) {
-    showOutput("");
+    renderResult({ kind: "void" });
     if (statusHint) statusHint.textContent = "";
     return;
   }
@@ -110,17 +152,22 @@ const onInputChange = async () => {
       live: true,
     });
 
-    // Discard if a newer keystroke has fired
     if (seq !== liveSeq) return;
 
+    console.log("[shrowser] live response:", JSON.stringify(response)?.substring(0, 500));
     if (response?.impure) {
       if (statusHint) statusHint.textContent = "↵ enter to run";
+    } else if (response?.result) {
+      if (statusHint) statusHint.textContent = "";
+      renderResult(response.result);
     } else if (response?.value) {
       if (statusHint) statusHint.textContent = "";
-      showOutput(response.value);
+      showText(response.value);
+    } else {
+      console.log("[shrowser] live: no result/value in response");
     }
-    // If empty/error response, keep showing the last valid output
-  } catch {
+  } catch (err: any) {
+    console.log("[shrowser] live error:", err?.message);
     // Keep showing last valid output
   }
 };
@@ -128,7 +175,11 @@ const onInputChange = async () => {
 // ── Keyboard handling ────────────────────────────────────────────
 
 const onInputKey = async (e: KeyboardEvent) => {
-  if (e.key === "Escape" || (e.key === "`" && e.ctrlKey) || (e.key === "d" && e.ctrlKey)) {
+  const isDismiss =
+    config.repl.dismissKeys.includes(e.key) ||
+    config.repl.dismissChords.some((c) => e.key === c.key && e[c.modifier as keyof KeyboardEvent]) ||
+    (e.key === config.repl.toggleKey && e[config.repl.toggleModifier as keyof KeyboardEvent]);
+  if (isDismiss) {
     e.preventDefault();
     e.stopPropagation();
     hideBar();
@@ -143,18 +194,34 @@ const onInputKey = async (e: KeyboardEvent) => {
     if (history[history.length - 1] !== cmd) history.push(cmd);
     historyIdx = -1;
 
+    // Remove listener before clearing input to prevent onInputChange from wiping output
+    input!.removeEventListener("input", onInputChange);
     input!.value = "";
+    input!.addEventListener("input", onInputChange);
     if (statusHint) statusHint.textContent = "";
-    showOutput("...");
+    showText("...");
 
     try {
       const response = await browser.runtime.sendMessage({
         type: "exec-repl",
         command: cmd,
       });
-      showOutput(response?.value ?? "");
+      console.log("[shrowser] Enter response:", JSON.stringify(response)?.substring(0, 500));
+      if (response?.error) {
+        showText(`error: ${response.error}`);
+      } else if (response?.result) {
+        console.log("[shrowser] rendering result kind:", response.result.kind);
+        renderResult(response.result);
+      } else if (response?.value) {
+        console.log("[shrowser] rendering value fallback");
+        showText(response.value);
+      } else {
+        console.log("[shrowser] no result or value, rendering void");
+        renderResult({ kind: "void" });
+      }
     } catch (err: any) {
-      showOutput(`error: ${err.message}`);
+      console.log("[shrowser] Enter error:", err.message);
+      showText(`error: ${err.message}`);
     }
     return;
   }
@@ -183,7 +250,7 @@ const onInputKey = async (e: KeyboardEvent) => {
 // ── Global Ctrl+` listener ───────────────────────────────────────
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "`" && e.ctrlKey) {
+  if (e.key === config.repl.toggleKey && e[config.repl.toggleModifier as keyof KeyboardEvent]) {
     e.preventDefault();
     e.stopPropagation();
     if (bar && bar.style.display !== "none") {
@@ -197,6 +264,11 @@ document.addEventListener("keydown", (e) => {
 // ── DOM command handler (from background) ────────────────────────
 
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === "open-bar") {
+    showBar();
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === "dom-command") {
     sendResponse({ ok: true });
   }

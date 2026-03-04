@@ -10,13 +10,14 @@
 // On connect, clients send: { type: "hello", role: "cli" | "extension" }
 
 import type { ServerWebSocket } from "bun";
+import { config } from "../config.gen.ts";
 
 type ClientData = { role: "cli" | "extension" | "unknown" };
 
 let extensionSocket: ServerWebSocket<ClientData> | null = null;
 const pendingRequests = new Map<string, ServerWebSocket<ClientData>>();
 
-export const startDaemon = (port = 9231) => {
+export const startDaemon = (port = config.daemon.port) => {
   const server = Bun.serve<ClientData>({
     port,
     fetch(req, server) {

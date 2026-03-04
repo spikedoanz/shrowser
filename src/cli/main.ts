@@ -2,12 +2,13 @@
 
 import { sendCommand } from "./client.ts";
 import { startDaemon } from "../daemon/server.ts";
+import { config } from "../config.gen.ts";
 
 const args = process.argv.slice(2);
 
-// spike-browser daemon
+// shrowser daemon
 if (args[0] === "daemon") {
-  const port = parseInt(args[1] ?? "9231", 10);
+  const port = parseInt(args[1] ?? String(config.daemon.port), 10);
   startDaemon(port);
   // Keep process alive
 } else if (args.length > 0) {

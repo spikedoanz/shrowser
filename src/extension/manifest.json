@@ -6,6 +6,7 @@
   "permissions": [
     "tabs",
     "activeTab",
+    "search",
     "storage",
     "<all_urls>"
   ],

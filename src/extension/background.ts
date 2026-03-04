@@ -6,6 +6,7 @@ import { text, table, VOID, renderValue, valueToLines } from "../commands/types.
 import { tokenize } from "../lang/tokenizer.ts";
 import { parse } from "../lang/parser.ts";
 import type { Script, Pipeline, Command, Arg } from "../lang/types.ts";
+import { config } from "../config.gen.ts";
 
 // ── Command registry (browser-side) ─────────────────────────────
 
@@ -13,10 +14,15 @@ type CommandFn = (args: readonly string[], pipe: Value) => Promise<Value>;
 type CommandEntry = { fn: CommandFn; usage: string; desc: string; pure: boolean };
 const commands = new Map<string, CommandEntry>();
 
-const impure = new Set(["close", "new", "jump", "search", "reload", "back", "forward", "pin", "mute"]);
+const impure = new Set(["close", "new", "jump", "search", "reload", "pin", "mute"]);
 
 const register = (name: string, usage: string, desc: string, fn: CommandFn) =>
   commands.set(name, { fn, usage, desc, pure: !impure.has(name) });
+
+const alias = (short: string, long: string) => {
+  const entry = commands.get(long);
+  if (entry) commands.set(short, entry);
+};
 
 // Check if a script is pure (all commands are side-effect-free)
 const isScriptPure = (script: Script): boolean =>
@@ -33,18 +39,15 @@ const isScriptPure = (script: Script): boolean =>
 
 // ── Built-in browser commands ────────────────────────────────────
 
-register("list", "list", "list all open tabs as a table", async (_args, _pipe) => {
-  const tabs = await browser.tabs.query({});
-  return table(
-    ["idx", "title", "url", "active", "pinned"],
-    tabs.map((t, i) => ({
-      idx: String(i),
-      title: t.title ?? "",
-      url: t.url ?? "",
-      active: t.active ? "*" : "",
-      pinned: t.pinned ? "pin" : "",
-    })),
+register("list", "list [pattern]", "list tabs, optionally filtering by pattern", async (args, _pipe) => {
+  const all = await listTabs();
+  const pattern = args[0];
+  if (!pattern || all.kind !== "table") return all;
+  const lower = pattern.toLowerCase();
+  const matching = all.rows.filter((row) =>
+    all.columns.some((col) => (row[col] ?? "").toLowerCase().includes(lower)),
   );
+  return { kind: "table", columns: all.columns, rows: matching };
 });
 
 register("close", "close [idx]", "close tab by index, piped table, or current tab", async (args, pipe) => {
@@ -73,7 +76,7 @@ register("close", "close [idx]", "close tab by index, piped table, or current ta
 
 register("new", "new <url>", "open a new tab, auto-prepends https://", async (args, _pipe) => {
   let url = args[0] ?? "about:blank";
-  if (url && !url.includes("://") && !url.startsWith("about:")) {
+  if (url && !url.includes("://") && !url.includes(":")) {
     url = "https://" + url;
   }
   await browser.tabs.create({ url });
@@ -104,29 +107,15 @@ register("jump", "jump <idx | string>", "switch to tab by index or search title/
   return text(`no tab matching "${query}" (searched ${tabs.length} tabs)`);
 });
 
-register("search", "search <query...>", "search with DuckDuckGo", async (args, _pipe) => {
+register("search", "search <query...>", "search with default engine", async (args, _pipe) => {
   const query = args.join(" ");
-  const engine = "https://duckduckgo.com/?q=";
-  const url = engine + encodeURIComponent(query);
-  await browser.tabs.create({ url });
+  await browser.search.search({ query, tabId: undefined });
   return VOID;
 });
 
 register("reload", "reload", "reload current tab", async (_args, _pipe) => {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) await browser.tabs.reload(tab.id);
-  return VOID;
-});
-
-register("back", "back", "go back in history", async (_args, _pipe) => {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) await browser.tabs.executeScript(tab.id, { code: "history.back()" });
-  return VOID;
-});
-
-register("forward", "forward", "go forward in history", async (_args, _pipe) => {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) await browser.tabs.executeScript(tab.id, { code: "history.forward()" });
   return VOID;
 });
 
@@ -158,16 +147,37 @@ register("mute", "mute [idx]", "toggle mute on tab", async (args, _pipe) => {
 
 // ── Util commands (also available in extension) ──────────────────
 
-register("echo", "echo [args...]", "echo arguments or pipe input", async (args, pipe) => {
-  if (args.length > 0) return text(args.join(" "));
-  if (pipe.kind !== "void") return pipe;
-  return text("");
-});
+const listTabs = async (): Promise<Value> => {
+  const tabs = await browser.tabs.query({});
+  return table(
+    ["idx", "title", "url", "active", "pinned"],
+    tabs.map((t, i) => ({
+      idx: String(i),
+      title: t.title ?? "",
+      url: t.url ?? "",
+      active: t.active ? "*" : "",
+      pinned: t.pinned ? "pin" : "",
+    })),
+  );
+};
 
-register("grep", "grep <pattern>", "filter lines or rows matching a pattern (case-insensitive)", async (args, pipe) => {
-  const pattern = args[0];
-  if (!pattern) return pipe;
+register("grep", "grep [pattern]", "filter tabs (or piped input) by pattern", async (args, pipe) => {
+  // No pipe and no pattern — just list tabs
+  if (pipe.kind === "void" && !args[0]) return listTabs();
+
+  const pattern = args[0] ?? "";
   const lower = pattern.toLowerCase();
+
+  // No pipe — grep over tabs
+  if (pipe.kind === "void") {
+    const all = await listTabs();
+    if (all.kind !== "table") return all;
+    const matching = all.rows.filter((row) =>
+      all.columns.some((col) => (row[col] ?? "").toLowerCase().includes(lower)),
+    );
+    return { kind: "table", columns: all.columns, rows: matching };
+  }
+
   if (pipe.kind === "table") {
     const matching = pipe.rows.filter((row) =>
       pipe.columns.some((col) => (row[col] ?? "").toLowerCase().includes(lower)),
@@ -190,27 +200,41 @@ register("tail", "tail [n=10]", "take last N lines or rows", async (args, pipe) 
   return text(valueToLines(pipe).slice(-n).join("\n"));
 });
 
-register("count", "count", "count lines or rows", async (_args, pipe) => {
-  if (pipe.kind === "table") return text(String(pipe.rows.length));
-  const lines = valueToLines(pipe);
-  return text(String(lines.length === 1 && lines[0] === "" ? 0 : lines.length));
-});
+// Aliases defined before help so help can display them
+const aliases: Record<string, string> = {
+  l: "list", c: "close", n: "new", j: "jump", s: "search",
+  r: "reload", p: "pin", m: "mute", h: "head", t: "tail",
+};
 
-register("select", "select <col...>", "pick columns from a table", async (args, pipe) => {
-  if (pipe.kind !== "table") return pipe;
-  const rows = pipe.rows.map((row) => {
-    const out: Record<string, string> = {};
-    for (const col of args) if (row[col] !== undefined) out[col] = row[col];
-    return out;
-  });
-  return { kind: "table", columns: args, rows };
-});
+for (const [short, long] of Object.entries(aliases)) alias(short, long);
 
 register("help", "help", "list available commands", async () => {
-  const entries = [...commands.entries()].sort(([a], [b]) => a.localeCompare(b));
-  const lines = entries.map(([_, entry]) => `${entry.usage}\n  ${entry.desc}`);
-  return text(lines.join("\n\n"));
+  const seen = new Set<CommandEntry>();
+  const reverseAlias = new Map<string, string>();
+  for (const [short, long] of Object.entries(aliases)) reverseAlias.set(long, short);
+  reverseAlias.set("help", "?");
+
+  const entries = [...commands.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([name, entry]) => {
+      if (seen.has(entry)) return false;
+      seen.add(entry);
+      return true;
+    });
+
+  return table(
+    ["command", "usage", "desc"],
+    entries.map(([name, entry]) => {
+      const short = reverseAlias.get(name);
+      const label = short && name.startsWith(short)
+        ? `[${short}]${name.slice(short.length)}`
+        : short ? `${name} [${short}]` : name;
+      return { command: label, usage: entry.usage, desc: entry.desc };
+    }),
+  );
 });
+
+alias("?", "help");
 
 // ── Executor ─────────────────────────────────────────────────────
 
@@ -245,8 +269,17 @@ const executeScript = async (script: Script): Promise<Value> => {
 
 // ── REPL message handler (from content script) ──────────────────
 
+const openBarOnActiveTab = async () => {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id) {
+    try { await browser.tabs.sendMessage(tab.id, { type: "open-bar" }); } catch {}
+  }
+};
+
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "exec-repl") return;
+
+  const senderTabId = _sender.tab?.id;
 
   (async () => {
     try {
@@ -255,18 +288,26 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
       // In live mode, refuse to execute impure commands
       if (msg.live && !isScriptPure(ast)) {
-        sendResponse({ value: "", impure: true });
+        sendResponse({ impure: true });
         return;
       }
 
       const result = await executeScript(ast);
-      sendResponse({ value: renderValue(result) });
+      sendResponse({ result, value: renderValue(result) });
+
+      // If the active tab changed (e.g. jump, close), open bar on the new tab
+      if (!msg.live && senderTabId != null) {
+        const [active] = await browser.tabs.query({ active: true, currentWindow: true });
+        if (active?.id && active.id !== senderTabId) {
+          openBarOnActiveTab();
+        }
+      }
     } catch (e: any) {
       // In live mode, swallow parse/unknown-command errors silently
       if (msg.live) {
-        sendResponse({ value: "" });
+        sendResponse({});
       } else {
-        sendResponse({ value: `error: ${e.message}` });
+        sendResponse({ error: e.message });
       }
     }
   })();
@@ -276,7 +317,7 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 // ── WebSocket connection to daemon ───────────────────────────────
 
-const DAEMON_URL = "ws://localhost:9231";
+const DAEMON_URL = `ws://localhost:${config.daemon.port}`;
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 

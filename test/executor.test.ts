@@ -7,7 +7,13 @@ import { text, table } from "../src/commands/types.ts";
 // Ensure built-ins are loaded
 import "../src/commands/util.ts";
 
-// Register a test command that returns a table
+// Register test helpers
+register("echo", "echo arguments or pipe input", async (args, pipe) => {
+  if (args.length > 0) return text(args.join(" "));
+  if (pipe.kind !== "void") return pipe;
+  return text("");
+});
+
 register("test-table", "test table", async () =>
   table(["id", "name"], [
     { id: "1", name: "alpha" },
@@ -35,12 +41,7 @@ describe("executor", () => {
     expect(await exec('echo "a\\nb\\nc\\nd" | tail 2')).toBe("c\nd");
   });
 
-  it("executes count on text", async () => {
-    expect(await exec('echo "a\\nb\\nc" | count')).toBe("3");
-  });
-
   it("executes semicolon-separated pipelines", async () => {
-    // last pipeline's result is returned
     expect(await exec("echo first ; echo second")).toBe("second");
   });
 
@@ -57,15 +58,6 @@ describe("executor", () => {
     }
   });
 
-  it("select picks columns from table", async () => {
-    const result = await run("test-table | select name");
-    expect(result.kind).toBe("table");
-    if (result.kind === "table") {
-      expect(result.columns).toEqual(["name"]);
-      expect(result.rows[0]).toEqual({ name: "alpha" });
-    }
-  });
-
   it("head works on tables", async () => {
     const result = await run("test-table | head 1");
     expect(result.kind).toBe("table");
@@ -74,16 +66,8 @@ describe("executor", () => {
     }
   });
 
-  it("count works on tables", async () => {
-    expect(await exec("test-table | count")).toBe("3");
-  });
-
   it("throws on unknown command", async () => {
     expect(run("nonexistent")).rejects.toThrow("unknown command");
   });
 
-  it("help returns a table", async () => {
-    const result = await run("help");
-    expect(result.kind).toBe("table");
-  });
 });

@@ -2,12 +2,13 @@
 
 import type { Value } from "../commands/types.ts";
 import { renderValue } from "../commands/types.ts";
+import { config } from "../config.gen.ts";
 
 type ExecResult =
   | { id: string; type: "result"; value: Value }
   | { id: string; type: "error"; message: string };
 
-export const sendCommand = (command: string, port = 9231): Promise<string> =>
+export const sendCommand = (command: string, port = config.daemon.port): Promise<string> =>
   new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     const ws = new WebSocket(`ws://localhost:${port}`);

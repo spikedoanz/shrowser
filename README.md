@@ -64,30 +64,25 @@ echo 'list | head 5' | shrowser
 
 ### Browser
 
-| Command     | Usage                    | Description                              |
-|-------------|--------------------------|------------------------------------------|
-| `list`      | `list`                   | list all open tabs                       |
-| `close`     | `close [idx]`            | close tab by index, pipe, or current     |
-| `new`       | `new <url>`              | open a new tab (auto-prepends https://)  |
-| `jump`      | `jump <idx \| string>`   | switch to tab by index or search         |
-| `search`    | `search <query...>`      | search with DuckDuckGo                   |
-| `reload`    | `reload`                 | reload current tab                       |
-| `back`      | `back`                   | go back in history                       |
-| `forward`   | `forward`                | go forward in history                    |
-| `pin`       | `pin [idx]`              | toggle pin on tab                        |
-| `mute`      | `mute [idx]`             | toggle mute on tab                       |
+| Command    | Alias | Description                              |
+|------------|-------|------------------------------------------|
+| `list`     | `l`   | list all open tabs                       |
+| `close`    | `c`   | close tab by index, pipe, or current     |
+| `new`      | `n`   | open a new tab (auto-prepends https://)  |
+| `jump`     | `j`   | switch to tab by index or search         |
+| `search`   | `s`   | search with DuckDuckGo                   |
+| `reload`   | `r`   | reload current tab                       |
+| `pin`      | `p`   | toggle pin on tab                        |
+| `mute`     | `m`   | toggle mute on tab                       |
 
 ### Data
 
-| Command  | Usage                | Description                          |
-|----------|----------------------|--------------------------------------|
-| `echo`   | `echo [args...]`     | echo args or pass through pipe       |
-| `grep`   | `grep <pattern>`     | filter lines/rows by substring       |
-| `head`   | `head [n=10]`        | take first N lines/rows              |
-| `tail`   | `tail [n=10]`        | take last N lines/rows               |
-| `count`  | `count`              | count lines/rows                     |
-| `select` | `select <col...>`    | pick columns from a table            |
-| `help`   | `help`               | list all commands with usage          |
+| Command | Alias | Description                          |
+|---------|-------|--------------------------------------|
+| `grep`  | `g`   | filter lines/rows by substring       |
+| `head`  | `h`   | take first N lines/rows              |
+| `tail`  | `t`   | take last N lines/rows               |
+| `help`  | `?`   | list all commands with usage          |
 
 ## Language
 
@@ -104,8 +99,8 @@ new a.com ; new b.com
 new "https://example.com/path with spaces"
 search 'who is the first man on the moon'
 
-# subshells
-echo $(list | count) tabs open
+# single-letter aliases
+l | g github | c
 
 # comments
 list  # shows all tabs
