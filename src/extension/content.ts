@@ -39,7 +39,7 @@ const createBar = () => {
 
   input = document.createElement("input");
   input.setAttribute("style", STYLES.input);
-  input.setAttribute("placeholder", "spike>");
+  input.setAttribute("placeholder", "");
   input.setAttribute("spellcheck", "false");
 
   output = document.createElement("pre");
@@ -50,6 +50,7 @@ const createBar = () => {
   document.documentElement.appendChild(bar);
 
   input.addEventListener("keydown", onInputKey);
+  input.addEventListener("blur", () => hideBar());
   input.focus();
 };
 
@@ -76,7 +77,7 @@ const showOutput = (text: string) => {
 // ── Keyboard handling ────────────────────────────────────────────
 
 const onInputKey = async (e: KeyboardEvent) => {
-  if (e.key === "Escape" || (e.key === "`" && e.ctrlKey)) {
+  if (e.key === "Escape" || (e.key === "`" && e.ctrlKey) || (e.key === "d" && e.ctrlKey)) {
     e.preventDefault();
     e.stopPropagation();
     hideBar();
