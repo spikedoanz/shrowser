@@ -30,7 +30,8 @@ export const sendCommand = (command: string, port = 9231): Promise<string> =>
       if (msg.type === "error") {
         reject(new Error(msg.message));
       } else {
-        resolve(renderValue(msg.value));
+        const width = process.stdout.columns ?? 80;
+        resolve(renderValue(msg.value, width));
       }
     };
 
