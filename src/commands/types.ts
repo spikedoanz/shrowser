@@ -18,12 +18,6 @@ export const table = (columns: readonly string[], rows: readonly Record<string, 
   ({ kind: "table", columns, rows });
 export const VOID: Value = { kind: "void" };
 
-// ANSI helpers
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-const bgDark = (s: string) => `\x1b[48;5;236m${s}\x1b[0m`;
-const bgLight = (s: string) => `\x1b[48;5;238m${s}\x1b[0m`;
-
 // Render a value to a printable string
 export const renderValue = (v: Value): string => {
   switch (v.kind) {
@@ -36,37 +30,44 @@ export const renderValue = (v: Value): string => {
   }
 };
 
-// Record-style list output.
-// Line 1: idx and title on grey background (alternating), active rows in green.
-// Line 2: url (no background), dimmed.
-// Remaining fields as key: value pairs, dimmed.
+// Format the index marker:
+//   plain:            3
+//   active:          (3)
+//   pinned:          [3]
+//   active + pinned: ([3])
+const formatIdx = (idx: string, active: boolean, pinned: boolean): string => {
+  let s = idx;
+  if (pinned) s = `[${s}]`;
+  if (active) s = `(${s})`;
+  return s;
+};
+
+// Record-style list output. Plain text, no ANSI.
+// Line 1: \t<marker> title
+// Line 2: \turl
+// Extra fields below.
 const renderTable = (
   columns: readonly string[],
   rows: readonly Record<string, string>[],
 ): string => {
   if (rows.length === 0) return "(empty table)";
 
-  // Known inline fields — these go on the main line or url line
-  const inlineKeys = new Set(["idx", "title", "name", "url", "active"]);
+  const inlineKeys = new Set(["idx", "title", "name", "url", "active", "pinned"]);
 
   return rows.map((row, i) => {
-    const isActive = row["active"] === "*";
-    const bg = i % 2 === 0 ? bgDark : bgLight;
-    const colorize = isActive ? green : (s: string) => s;
-
-    // Line 1: "idx: title" with background
     const idx = row["idx"] ?? String(i);
+    const active = row["active"] === "*";
+    const pinned = row["pinned"] === "pin" || row["pinned"] === "yes" || row["pinned"] === "*";
     const title = row["title"] ?? row["name"] ?? "";
-    const mainLine = bg(colorize(` ${idx}: ${title} `));
-
-    // Line 2: url (no background, dimmed)
     const url = row["url"] ?? "";
-    const urlLine = url ? `   ${dim(url)}` : "";
 
-    // Extra fields (not inline)
+    const marker = formatIdx(idx, active, pinned);
+    const mainLine = `\t${marker} ${title}`;
+    const urlLine = url ? `\t${url}` : "";
+
     const extras = columns
       .filter((col) => !inlineKeys.has(col) && (row[col] ?? "").length > 0)
-      .map((col) => `   ${dim(`${col}: ${row[col]}`)}`)
+      .map((col) => `\t${col}: ${row[col]}`)
       .join("\n");
 
     return [mainLine, urlLine, extras].filter(Boolean).join("\n");

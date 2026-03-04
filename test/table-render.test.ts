@@ -1,81 +1,97 @@
 import { describe, it, expect } from "bun:test";
 import { renderValue, table } from "../src/commands/types.ts";
 
-// Strip ANSI escape codes for assertion clarity
-const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
-
 describe("table rendering", () => {
-  it("renders idx and title inline", () => {
+  it("renders idx and title inline with tab indent", () => {
     const v = table(["idx", "title", "url"], [
       { idx: "0", title: "GitHub", url: "https://github.com" },
     ]);
-    const out = strip(renderValue(v));
-    expect(out).toContain("0: GitHub");
+    const out = renderValue(v);
+    expect(out).toContain("\t0 GitHub");
+    expect(out).toContain("\thttps://github.com");
   });
 
-  it("renders url on its own line without background", () => {
-    const v = table(["idx", "title", "url"], [
-      { idx: "0", title: "GitHub", url: "https://github.com" },
-    ]);
-    const raw = renderValue(v);
-    const lines = raw.split("\n");
-    // URL line should not contain background escape codes (48;5;)
-    const urlLine = lines.find((l) => strip(l).includes("https://github.com"))!;
-    expect(urlLine).not.toContain("\x1b[48;5;");
-  });
-
-  it("alternates grey backgrounds on main lines", () => {
-    const v = table(["idx", "title"], [
-      { idx: "0", title: "First" },
-      { idx: "1", title: "Second" },
-      { idx: "2", title: "Third" },
-    ]);
-    const raw = renderValue(v);
-    const lines = raw.split("\n");
-    expect(lines[0]).toContain("\x1b[48;5;236m"); // even = dark
-    expect(lines[1]).toContain("\x1b[48;5;238m"); // odd = light
-    expect(lines[2]).toContain("\x1b[48;5;236m"); // even again
-  });
-
-  it("highlights active rows in green", () => {
+  it("wraps active tab index in parens", () => {
     const v = table(["idx", "title", "active"], [
-      { idx: "0", title: "Inactive", active: "" },
-      { idx: "1", title: "Active", active: "*" },
+      { idx: "3", title: "Active Tab", active: "*" },
     ]);
-    const raw = renderValue(v);
-    expect(raw).toContain("\x1b[32m");
-    expect(raw).not.toContain("\x1b[32m 0: Inactive");
+    const out = renderValue(v);
+    expect(out).toContain("\t(3) Active Tab");
   });
 
-  it("falls back to row index when no idx column", () => {
-    const v = table(["name"], [
-      { name: "alpha" },
+  it("wraps pinned tab index in brackets", () => {
+    const v = table(["idx", "title", "pinned"], [
+      { idx: "1", title: "Pinned Tab", pinned: "pin" },
     ]);
-    const out = strip(renderValue(v));
-    expect(out).toContain("0: alpha");
+    const out = renderValue(v);
+    expect(out).toContain("\t[1] Pinned Tab");
   });
 
-  it("uses name column when no title column", () => {
-    const v = table(["name"], [
-      { name: "alpha" },
+  it("wraps active+pinned tab as ([idx])", () => {
+    const v = table(["idx", "title", "active", "pinned"], [
+      { idx: "2", title: "Both", active: "*", pinned: "pin" },
     ]);
-    const out = strip(renderValue(v));
-    expect(out).toContain("alpha");
+    const out = renderValue(v);
+    expect(out).toContain("\t([2]) Both");
+  });
+
+  it("plain tab has no brackets or parens", () => {
+    const v = table(["idx", "title", "active", "pinned"], [
+      { idx: "5", title: "Plain", active: "", pinned: "" },
+    ]);
+    const out = renderValue(v);
+    expect(out).toContain("\t5 Plain");
+    expect(out).not.toContain("(5)");
+    expect(out).not.toContain("[5]");
+  });
+
+  it("shows url on its own line", () => {
+    const v = table(["idx", "title", "url"], [
+      { idx: "0", title: "Test", url: "https://example.com" },
+    ]);
+    const lines = renderValue(v).split("\n");
+    expect(lines[1]).toBe("\thttps://example.com");
   });
 
   it("shows extra fields below url", () => {
-    const v = table(["idx", "title", "url", "pinned"], [
-      { idx: "0", title: "Tab", url: "https://a.com", pinned: "yes" },
+    const v = table(["idx", "title", "url", "muted"], [
+      { idx: "0", title: "Tab", url: "https://a.com", muted: "yes" },
     ]);
-    const out = strip(renderValue(v));
-    expect(out).toContain("pinned: yes");
+    const out = renderValue(v);
+    expect(out).toContain("\tmuted: yes");
   });
 
   it("omits empty fields", () => {
-    const v = table(["idx", "title", "url", "pinned"], [
-      { idx: "0", title: "Tab", url: "https://a.com", pinned: "" },
+    const v = table(["idx", "title", "url", "muted"], [
+      { idx: "0", title: "Tab", url: "https://a.com", muted: "" },
     ]);
-    const out = strip(renderValue(v));
-    expect(out).not.toContain("pinned");
+    const out = renderValue(v);
+    expect(out).not.toContain("muted");
+  });
+
+  it("falls back to row index when no idx column", () => {
+    const v = table(["name"], [{ name: "alpha" }]);
+    const out = renderValue(v);
+    expect(out).toContain("\t0 alpha");
+  });
+
+  it("no ANSI codes in output", () => {
+    const v = table(["idx", "title", "active"], [
+      { idx: "0", title: "Tab", active: "*" },
+    ]);
+    const out = renderValue(v);
+    expect(out).not.toContain("\x1b[");
+  });
+
+  it("pipes cleanly — no color codes to strip", () => {
+    const v = table(["idx", "title"], [
+      { idx: "0", title: "First" },
+      { idx: "1", title: "Second" },
+    ]);
+    const out = renderValue(v);
+    // Every line should be plain text
+    for (const line of out.split("\n")) {
+      expect(line).not.toMatch(/\x1b/);
+    }
   });
 });
