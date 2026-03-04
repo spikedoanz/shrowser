@@ -1,13 +1,15 @@
-# spike-browser
+# shrowser
 
-Composable browser scripting from your terminal. Pipe commands into Firefox like a shell.
+sh + browser = shrowser. Composable browser scripting.
 
 ```sh
-spike-browser list                              # list all tabs
-spike-browser 'list | grep github | close'      # close github tabs
-spike-browser 'new claude.ai ; new chat.com'    # open two tabs
-echo 'search "mount everest"' | spike-browser   # search via stdin
+shrowser list                              # list all tabs
+shrowser 'list | grep github | close'      # close github tabs
+shrowser 'new claude.ai ; new chat.com'    # open two tabs
+echo 'search "mount everest"' | shrowser   # search via stdin
 ```
+
+Or use the in-browser REPL: press `Ctrl+`` on any page.
 
 ## Setup
 
@@ -19,7 +21,7 @@ echo 'search "mount everest"' | spike-browser   # search via stdin
 ### Install
 
 ```sh
-git clone <repo> && cd spike-browser
+git clone <repo> && cd shrowser
 bun install
 ```
 
@@ -37,56 +39,55 @@ This outputs `dist/extension/` with the bundled Firefox extension.
 2. Click **Load Temporary Add-on...**
 3. Select `dist/extension/manifest.json`
 
-### Start the daemon
+### In-browser REPL
 
-The daemon is a WebSocket broker on `localhost:9231` that routes commands between the CLI and the extension.
+Press **Ctrl+\`** on any page to open the command bar. Type commands and hit Enter. Dismiss with **Esc**, **Ctrl+D**, **Ctrl+\`**, or click away.
+
+No daemon needed — commands go directly to the extension.
+
+### CLI usage (optional)
+
+The CLI requires the daemon as a bridge between your terminal and the extension.
 
 ```sh
+# start the daemon
 bun run daemon
-```
 
-Keep this running in a terminal.
-
-### Send commands
-
-```sh
-# as arguments
-bun run src/cli/main.ts list
-bun run src/cli/main.ts 'list | grep github'
-bun run src/cli/main.ts 'new example.com'
-
-# via stdin
-echo 'list | head 5' | bun run src/cli/main.ts
+# send commands
+shrowser list
+shrowser 'list | grep github'
+shrowser 'new example.com'
+echo 'list | head 5' | shrowser
 ```
 
 ## Commands
 
 ### Browser
 
-| Command     | Description                        | Example                     |
-|-------------|------------------------------------|-----------------------------|
-| `list`      | list all tabs (table)              | `list`                      |
-| `close`     | close tab by index or current      | `close 3`                   |
-| `new`       | open a new tab                     | `new claude.ai`             |
-| `jump`      | switch to tab by index             | `jump 0`                    |
-| `search`    | search with DuckDuckGo             | `search mount everest`      |
-| `reload`    | reload current tab                 | `reload`                    |
-| `back`      | go back in history                 | `back`                      |
-| `forward`   | go forward in history              | `forward`                   |
-| `pin`       | toggle pin on tab                  | `pin 2`                     |
-| `mute`      | toggle mute on tab                 | `mute`                      |
+| Command     | Usage                    | Description                              |
+|-------------|--------------------------|------------------------------------------|
+| `list`      | `list`                   | list all open tabs                       |
+| `close`     | `close [idx]`            | close tab by index, pipe, or current     |
+| `new`       | `new <url>`              | open a new tab (auto-prepends https://)  |
+| `jump`      | `jump <idx \| string>`   | switch to tab by index or search         |
+| `search`    | `search <query...>`      | search with DuckDuckGo                   |
+| `reload`    | `reload`                 | reload current tab                       |
+| `back`      | `back`                   | go back in history                       |
+| `forward`   | `forward`                | go forward in history                    |
+| `pin`       | `pin [idx]`              | toggle pin on tab                        |
+| `mute`      | `mute [idx]`             | toggle mute on tab                       |
 
 ### Data
 
-| Command  | Description                          | Example                          |
-|----------|--------------------------------------|----------------------------------|
-| `echo`   | echo args or pass through pipe       | `echo hello`                     |
-| `grep`   | filter lines/rows by substring       | `list \| grep github`            |
-| `head`   | take first N lines/rows              | `list \| head 5`                 |
-| `tail`   | take last N lines/rows               | `list \| tail 3`                 |
-| `count`  | count lines/rows                     | `list \| count`                  |
-| `select` | pick columns from a table            | `list \| select title url`       |
-| `help`   | list all commands                    | `help`                           |
+| Command  | Usage                | Description                          |
+|----------|----------------------|--------------------------------------|
+| `echo`   | `echo [args...]`     | echo args or pass through pipe       |
+| `grep`   | `grep <pattern>`     | filter lines/rows by substring       |
+| `head`   | `head [n=10]`        | take first N lines/rows              |
+| `tail`   | `tail [n=10]`        | take last N lines/rows               |
+| `count`  | `count`              | count lines/rows                     |
+| `select` | `select <col...>`    | pick columns from a table            |
+| `help`   | `help`               | list all commands with usage          |
 
 ## Language
 
@@ -115,10 +116,12 @@ list  # shows all tabs
 ```
 Terminal (CLI)          Daemon (localhost:9231)        Firefox Extension
 ─────────────          ──────────────────────         ─────────────────
-spike-browser ──WS──▶  broker server     ◀──WS──     background.ts
+shrowser     ──WS──▶   broker server     ◀──WS──     background.ts
                         routes commands                ├─ command registry
                         routes results                 ├─ browser API calls
-                                                       └─ content script
+                                                       └─ content script (REPL)
+
+In-browser REPL: content script ──message──▶ background.ts (no daemon needed)
 ```
 
 ## Development
