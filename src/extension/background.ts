@@ -228,6 +228,25 @@ const executeScript = async (script: Script): Promise<Value> => {
   return last;
 };
 
+// ── REPL message handler (from content script) ──────────────────
+
+browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "exec-repl") return;
+
+  (async () => {
+    try {
+      const tokens = tokenize(msg.command);
+      const ast = parse(tokens);
+      const result = await executeScript(ast);
+      sendResponse({ value: renderValue(result) });
+    } catch (e: any) {
+      sendResponse({ value: `error: ${e.message}` });
+    }
+  })();
+
+  return true; // keep message channel open for async response
+});
+
 // ── WebSocket connection to daemon ───────────────────────────────
 
 const DAEMON_URL = "ws://localhost:9231";
