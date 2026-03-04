@@ -115,13 +115,13 @@ const onInputChange = async () => {
 
     if (response?.impure) {
       if (statusHint) statusHint.textContent = "↵ enter to run";
-    } else {
+    } else if (response?.value) {
       if (statusHint) statusHint.textContent = "";
-      showOutput(response?.value ?? "");
+      showOutput(response.value);
     }
+    // If empty/error response, keep showing the last valid output
   } catch {
-    if (seq !== liveSeq) return;
-    showOutput("");
+    // Keep showing last valid output
   }
 };
 
