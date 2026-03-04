@@ -10,14 +10,15 @@ import type { Script, Pipeline, Command, Arg } from "../lang/types.ts";
 // ── Command registry (browser-side) ─────────────────────────────
 
 type CommandFn = (args: readonly string[], pipe: Value) => Promise<Value>;
-type CommandEntry = { fn: CommandFn; desc: string };
+type CommandEntry = { fn: CommandFn; usage: string; desc: string };
 const commands = new Map<string, CommandEntry>();
 
-const register = (name: string, desc: string, fn: CommandFn) => commands.set(name, { fn, desc });
+const register = (name: string, usage: string, desc: string, fn: CommandFn) =>
+  commands.set(name, { fn, usage, desc });
 
 // ── Built-in browser commands ────────────────────────────────────
 
-register("list", "list all open tabs", async (_args, _pipe) => {
+register("list", "list", "list all open tabs as a table", async (_args, _pipe) => {
   const tabs = await browser.tabs.query({});
   return table(
     ["idx", "title", "url", "active", "pinned"],
@@ -31,7 +32,7 @@ register("list", "list all open tabs", async (_args, _pipe) => {
   );
 });
 
-register("close", "close tab by index or current", async (args, pipe) => {
+register("close", "close [idx]", "close tab by index, piped table, or current tab", async (args, pipe) => {
   if (args.length > 0) {
     const idx = parseInt(args[0]!, 10);
     const tabs = await browser.tabs.query({});
@@ -55,7 +56,7 @@ register("close", "close tab by index or current", async (args, pipe) => {
   return VOID;
 });
 
-register("new", "open a new tab", async (args, _pipe) => {
+register("new", "new <url>", "open a new tab, auto-prepends https://", async (args, _pipe) => {
   let url = args[0] ?? "about:blank";
   if (url && !url.includes("://") && !url.startsWith("about:")) {
     url = "https://" + url;
@@ -64,7 +65,7 @@ register("new", "open a new tab", async (args, _pipe) => {
   return VOID;
 });
 
-register("jump", "switch to tab by index or search", async (args, pipe) => {
+register("jump", "jump <idx | string>", "switch to tab by index or search title/url", async (args, pipe) => {
   const arg = args[0] ?? (pipe.kind === "table" && pipe.rows[0]?.["idx"]) ?? "0";
   const tabs = await browser.tabs.query({});
 
@@ -88,7 +89,7 @@ register("jump", "switch to tab by index or search", async (args, pipe) => {
   return text(`no tab matching "${query}" (searched ${tabs.length} tabs)`);
 });
 
-register("search", "search with DuckDuckGo", async (args, _pipe) => {
+register("search", "search <query...>", "search with DuckDuckGo", async (args, _pipe) => {
   const query = args.join(" ");
   const engine = "https://duckduckgo.com/?q=";
   const url = engine + encodeURIComponent(query);
@@ -96,25 +97,25 @@ register("search", "search with DuckDuckGo", async (args, _pipe) => {
   return VOID;
 });
 
-register("reload", "reload current tab", async (_args, _pipe) => {
+register("reload", "reload", "reload current tab", async (_args, _pipe) => {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) await browser.tabs.reload(tab.id);
   return VOID;
 });
 
-register("back", "go back in history", async (_args, _pipe) => {
+register("back", "back", "go back in history", async (_args, _pipe) => {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) await browser.tabs.executeScript(tab.id, { code: "history.back()" });
   return VOID;
 });
 
-register("forward", "go forward in history", async (_args, _pipe) => {
+register("forward", "forward", "go forward in history", async (_args, _pipe) => {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) await browser.tabs.executeScript(tab.id, { code: "history.forward()" });
   return VOID;
 });
 
-register("pin", "toggle pin on tab", async (args, _pipe) => {
+register("pin", "pin [idx]", "toggle pin on tab", async (args, _pipe) => {
   const idx = args[0] ? parseInt(args[0], 10) : undefined;
   let tab: browser.tabs.Tab;
   if (idx !== undefined) {
@@ -127,7 +128,7 @@ register("pin", "toggle pin on tab", async (args, _pipe) => {
   return VOID;
 });
 
-register("mute", "toggle mute on tab", async (args, _pipe) => {
+register("mute", "mute [idx]", "toggle mute on tab", async (args, _pipe) => {
   const idx = args[0] ? parseInt(args[0], 10) : undefined;
   let tab: browser.tabs.Tab;
   if (idx !== undefined) {
@@ -142,13 +143,13 @@ register("mute", "toggle mute on tab", async (args, _pipe) => {
 
 // ── Util commands (also available in extension) ──────────────────
 
-register("echo", "echo arguments or pipe input", async (args, pipe) => {
+register("echo", "echo [args...]", "echo arguments or pipe input", async (args, pipe) => {
   if (args.length > 0) return text(args.join(" "));
   if (pipe.kind !== "void") return pipe;
   return text("");
 });
 
-register("grep", "filter lines matching a pattern", async (args, pipe) => {
+register("grep", "grep <pattern>", "filter lines or rows matching a pattern", async (args, pipe) => {
   const pattern = args[0];
   if (!pattern) return pipe;
   if (pipe.kind === "table") {
@@ -161,25 +162,25 @@ register("grep", "filter lines matching a pattern", async (args, pipe) => {
   return text(lines.filter((l) => l.includes(pattern)).join("\n"));
 });
 
-register("head", "take first N lines or rows", async (args, pipe) => {
+register("head", "head [n=10]", "take first N lines or rows", async (args, pipe) => {
   const n = parseInt(args[0] ?? "10", 10);
   if (pipe.kind === "table") return { kind: "table", columns: pipe.columns, rows: pipe.rows.slice(0, n) };
   return text(valueToLines(pipe).slice(0, n).join("\n"));
 });
 
-register("tail", "take last N lines or rows", async (args, pipe) => {
+register("tail", "tail [n=10]", "take last N lines or rows", async (args, pipe) => {
   const n = parseInt(args[0] ?? "10", 10);
   if (pipe.kind === "table") return { kind: "table", columns: pipe.columns, rows: pipe.rows.slice(-n) };
   return text(valueToLines(pipe).slice(-n).join("\n"));
 });
 
-register("count", "count lines or rows", async (_args, pipe) => {
+register("count", "count", "count lines or rows", async (_args, pipe) => {
   if (pipe.kind === "table") return text(String(pipe.rows.length));
   const lines = valueToLines(pipe);
   return text(String(lines.length === 1 && lines[0] === "" ? 0 : lines.length));
 });
 
-register("select", "pick columns from a table", async (args, pipe) => {
+register("select", "select <col...>", "pick columns from a table", async (args, pipe) => {
   if (pipe.kind !== "table") return pipe;
   const rows = pipe.rows.map((row) => {
     const out: Record<string, string> = {};
@@ -189,12 +190,10 @@ register("select", "pick columns from a table", async (args, pipe) => {
   return { kind: "table", columns: args, rows };
 });
 
-register("help", "list available commands", async () => {
+register("help", "help", "list available commands", async () => {
   const entries = [...commands.entries()].sort(([a], [b]) => a.localeCompare(b));
-  return table(
-    ["name", "description"],
-    entries.map(([name, entry]) => ({ name, description: entry.desc })),
-  );
+  const lines = entries.map(([_, entry]) => `${entry.usage}\n  ${entry.desc}`);
+  return text(lines.join("\n\n"));
 });
 
 // ── Executor ─────────────────────────────────────────────────────
