@@ -59,7 +59,14 @@ const renderTable = (
   const header = columns.map((col, i) => pad(col, widths[i]!)).join(gapStr);
   const sep = widths.map((w) => "─".repeat(w)).join("─".repeat(gap));
 
-  const body = rows.map((row) => {
+  // ANSI backgrounds for alternating row stripes
+  const bgEven = "\x1b[48;5;236m"; // dark grey
+  const bgOdd = "\x1b[48;5;238m";  // lighter grey
+  const reset = "\x1b[0m";
+
+  const body = rows.map((row, rowIdx) => {
+    const bg = rowIdx % 2 === 0 ? bgEven : bgOdd;
+
     // Wrap each cell's value into lines that fit the column width
     const wrapped: string[][] = columns.map((col, i) => {
       const val = row[col] ?? "";
@@ -72,9 +79,8 @@ const renderTable = (
     // Build each visual line
     const lines: string[] = [];
     for (let l = 0; l < lineCount; l++) {
-      lines.push(
-        columns.map((_, i) => pad(wrapped[i]![l] ?? "", widths[i]!)).join(gapStr),
-      );
+      const content = columns.map((_, i) => pad(wrapped[i]![l] ?? "", widths[i]!)).join(gapStr);
+      lines.push(`${bg}${content}${reset}`);
     }
     return lines.join("\n");
   }).join("\n");

@@ -1,13 +1,16 @@
 import { describe, it, expect } from "bun:test";
 import { renderValue, table } from "../src/commands/types.ts";
 
+// Strip ANSI escape codes for assertion clarity
+const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
 describe("table rendering", () => {
   it("renders a simple table without folding when it fits", () => {
     const v = table(["id", "name"], [
       { id: "1", name: "alpha" },
       { id: "2", name: "beta" },
     ]);
-    const out = renderValue(v, 80);
+    const out = strip(renderValue(v, 80));
     const lines = out.split("\n");
     expect(lines).toHaveLength(4); // header + sep + 2 rows
     expect(lines[0]).toContain("id");
@@ -18,8 +21,7 @@ describe("table rendering", () => {
     const v = table(["id", "url"], [
       { id: "1", url: "https://example.com/very/long/path/that/will/not/fit" },
     ]);
-    // Force narrow width so url must fold
-    const out = renderValue(v, 30);
+    const out = strip(renderValue(v, 30));
     const lines = out.split("\n");
     // header + sep = 2, then row should be more than 1 line
     expect(lines.length).toBeGreaterThan(3);
@@ -33,12 +35,11 @@ describe("table rendering", () => {
     const v = table(["id", "url"], [
       { id: "1", url: "abcdefghijklmnopqrstuvwxyz" },
     ]);
-    const out = renderValue(v, 20);
+    const out = strip(renderValue(v, 20));
     const lines = out.split("\n");
     const rowLines = lines.slice(2);
     // The "id" column should be blank-padded on continuation lines
     for (const line of rowLines.slice(1)) {
-      // first few chars should be spaces (empty id cell)
       expect(line.trimStart().length).toBeLessThan(line.length);
     }
   });
@@ -49,9 +50,23 @@ describe("table rendering", () => {
       { n: "2", val: "this-is-a-much-longer-value-that-needs-folding" },
       { n: "3", val: "ok" },
     ]);
-    const out = renderValue(v, 25);
-    // Should have header + sep + at least 3 row groups
+    const out = strip(renderValue(v, 25));
     expect(out).toContain("short");
     expect(out).toContain("this-is-a-much-longer-");
+  });
+
+  it("alternates row background colors", () => {
+    const v = table(["id"], [
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+    ]);
+    const out = renderValue(v, 80);
+    const lines = out.split("\n");
+    const rowLines = lines.slice(2); // skip header + sep
+    // Even rows use 236, odd rows use 238
+    expect(rowLines[0]).toContain("\x1b[48;5;236m");
+    expect(rowLines[1]).toContain("\x1b[48;5;238m");
+    expect(rowLines[2]).toContain("\x1b[48;5;236m");
   });
 });
