@@ -303,9 +303,8 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
       }
     } catch (e: any) {
-      // In live mode, swallow parse/unknown-command errors silently
       if (msg.live) {
-        sendResponse({});
+        sendResponse({ parseError: e.message });
       } else {
         sendResponse({ error: e.message });
       }

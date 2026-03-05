@@ -163,8 +163,8 @@ const onInputChange = async () => {
     } else if (response?.value) {
       if (statusHint) statusHint.textContent = "";
       showText(response.value);
-    } else {
-      console.log("[shrowser] live: no result/value in response");
+    } else if (response?.parseError) {
+      if (statusHint) statusHint.textContent = "? " + response.parseError;
     }
   } catch (err: any) {
     console.log("[shrowser] live error:", err?.message);
