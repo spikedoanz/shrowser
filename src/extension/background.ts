@@ -57,11 +57,11 @@ register("close", "close [idx]", "close tab by index, piped table, or current ta
     const tab = tabs[idx];
     if (tab?.id) await browser.tabs.remove(tab.id);
   } else if (pipe.kind === "table") {
+    const tabs = await browser.tabs.query({});
     const ids: number[] = [];
     for (const row of pipe.rows) {
       const idx = parseInt(row["idx"] ?? "", 10);
       if (!isNaN(idx)) {
-        const tabs = await browser.tabs.query({});
         const tab = tabs[idx];
         if (tab?.id) ids.push(tab.id);
       }
