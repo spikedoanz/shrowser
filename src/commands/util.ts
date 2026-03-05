@@ -3,8 +3,7 @@ import { text, valueToLines } from "./types.ts";
 
 // grep — filter lines matching a pattern
 register("grep", "filter lines matching a pattern", async (args, pipe) => {
-  const pattern = args[0];
-  if (!pattern) return pipe;
+  const pattern = args[0] ?? "";
   const lower = pattern.toLowerCase();
 
   if (pipe.kind === "table") {
